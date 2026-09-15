@@ -50,6 +50,89 @@ poison-before-live vs poison-after-live as causal control, paired items,
 7. **EMA state is session-local.** Shared global EMA suffers negative transfer
    across chats; share only slow artifacts (global dead-set, cluster priors). (07 + sim)
 
+## 01 — Attention vs usefulness vs ablation
+
+Three synthetic facts. For each, compare (normalized) last-layer attention,
+an LLM-judged usefulness map, and causal ablation (`max(0, lp_full − lp_redact i)`).
+
+![Zeldria capital — attention vs LLM map vs ablation](figures/zeldria_capital.png)
+
+![Brammel boiling point — attention vs LLM map vs ablation](figures/brammel_boiling.png)
+
+![Novara author — attention vs LLM map vs ablation](figures/novara_author.png)
+
+Spearman agreement across the three examples: attention vs LLM map is weak
+(~0.25 mean). Ablation is the sharp reference.
+
+![Spearman agreement between importance signals](figures/summary_correlations.png)
+
+## 02 — Keep-current vs forget-previous
+
+Two questions over a mixed context. Maps differ by question; pruning to Q2's
+mask beats forgetting whatever Q1 needed.
+
+![Usefulness maps by question and Q2 logprob after pruning](figures/multi_question_pruning.png)
+
+## 03 — Skill bloat: prune dead chunks before task n+1
+
+Shared 10-chunk company skill. Mask after each of tasks 1..n, take
+max-across-tasks, drop globally-dead chunks, then run task n+1.
+
+![Per-task ablation masks, dead overlap, and n+1 logprob](figures/skill_bloat_pruning.png)
+
+Post-hoc ablation masks painted on the skill text (one panel per task). Brighter
+red = more useful for that task.
+
+![Skill text colored by post-hoc usefulness, per task](figures/textmap_posthoc_tasks.png)
+
+## 04 — Hard delete vs soft attention mask (demo)
+
+First demo: deleting dead/poison tokens from the prompt vs blocking attention
+to them only at the answer. Soft answer-only masking retains full-context
+leakage (`leakage_index = 1.0` on this item).
+
+![Hard delete vs soft attention mask, demo](figures/hard_vs_soft_pruning.png)
+
+## 05 — Hard vs soft, poison-order control
+
+8 items × 2 poison orders × 5 conditions. Bootstrap 95% CIs.
+`hard − soft ≈ +0.44` when poison precedes live text; the gap vanishes when
+poison comes after (causal control). Leakage is prefilling into other tokens,
+not the answer-query attention edge.
+
+![Mean gold logprob by condition and poison order](figures/hard_vs_soft_rigorous.png)
+
+![Paired contrasts with 95% CIs](figures/hard_vs_soft_contrasts.png)
+
+## 06 — Predict the mask from the question alone
+
+No answer, no post-hoc ablation at test time. TF-IDF retrieval finds the true
+key chunk (mean rank 1.0); the 0.5B LLM judge collapses (flat / all-yes on
+Sev-1, 25% downstream accuracy).
+
+![Rank of true key chunk and downstream logprob after Q-only pruning](figures/mask_prediction_qonly.png)
+
+Sev-1 is the dramatic case: true post-hoc mask vs LLM question-only vs TF-IDF.
+
+![Sev-1 true mask vs LLM Q-only vs TF-IDF Q-only](figures/textmap_qonly_sev1.png)
+
+## 07 — Time-only EMA routing
+
+16-step Markov task stream (ρ=0.75). Mask after every step; apply EMA_{t−1} as
+the keep-set for the next step. No question text is used for routing. λ=0.9
+matches full-context accuracy (0.875) while keeping 5.6 / 10 chunks.
+
+![True post-hoc masks, time-EMA state, and gold logprob over the stream](figures/time_ema_pruning.png)
+
+What the time-only EMA router “sees” before selected steps (λ=0.9).
+
+![Time-EMA routing mask at t=2, 6, 10, 15](figures/textmap_ema_time.png)
+
+EMA state is session-local. A shared global EMA drops the other session's key
+chunk after a topic switch; per-session EMA does not.
+
+![Per-session vs shared global EMA, two chats](figures/session_vs_shared_ema.png)
+
 ## Run
 
 ```bash
@@ -60,16 +143,8 @@ python3 06_mask_prediction_qonly.py   # question-only routing
 python3 visualize_masks.py            # highlighted-text figures
 ```
 
-Outputs go to `artifacts/*.json` and `figures/*.png` (both gitignored —
-regenerate locally; see the figures list below for what each run produces).
-
-## Figures (regenerate with the scripts above)
-
-- `textmap_posthoc_tasks.png` — post-hoc masks painted on skill text, per task
-- `textmap_qonly_sev1.png` — true vs LLM-Q-only vs TF-IDF masks, side by side
-- `textmap_ema_time.png` — time-EMA router state at t=2, 6, 10, 15
-- `hard_vs_soft_rigorous.png` / `hard_vs_soft_contrasts.png` — CIs + paired contrasts
-- `time_ema_pruning.png`, `mask_prediction_qonly.png`, `skill_bloat_pruning.png`, …
+JSON summaries go to `artifacts/` (gitignored). Figures are written to
+`figures/*.png` and checked in so this README renders on GitHub.
 
 ## Limitations
 

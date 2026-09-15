@@ -1,0 +1,9 @@
+torch
+transformers>=4.44
+accelerate
+matplotlib
+numpy
+scipy
+scikit-learn
+sentencepiece
+protobuf

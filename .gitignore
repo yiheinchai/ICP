@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+artifacts/
+figures/
+.DS_Store
